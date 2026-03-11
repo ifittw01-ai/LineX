@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">社群行銷</string>
+    <string name="accessibility_service_name">LINE 自動加社群工具</string>
+    <string name="accessibility_service_desc">自動判斷社群畫面並執行加入流程</string>
+</resources>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="line_names">
+        <item>LINE</item>
+        <item>LINE1</item>
+        <item>LINE2</item>
+        <item>LINE3</item>
+        <item>LINE4</item>
+        <item>LINE5</item>
+        <item>LINE6</item>
+        <item>LINE7</item>
+        <item>LINE8</item>
+        <item>LINE9</item>
+        <item>LINE10</item>
+        <item>LINE11</item>
+        <item>LINE12</item>
+        <item>LINE13</item>
+        <item>LINE14</item>
+        <item>LINE15</item>
+        <item>LINE16</item>
+        <item>LINE17</item>
+        <item>LINE18</item>
+        <item>LINE19</item>
+        <item>LINE20</item>
+    </string-array>
+    <string-array name="line_packages">
+        <item>jp.naver.line.android</item>
+        <item>jp.naver.line.androii</item>
+        <item>jp.naver.line.androij</item>
+        <item>jp.naver.line.androik</item>
+        <item>jp.naver.line.androil</item>
+        <item>jp.naver.line.androim</item>
+        <item>jp.naver.line.androin</item>
+        <item>jp.naver.line.androio</item>
+        <item>jp.naver.line.androip</item>
+        <item>jp.naver.line.androiq</item>
+        <item>jp.naver.line.androir</item>
+        <item>jp.naver.line.androis</item>
+        <item>jp.naver.line.androit</item>
+        <item>jp.naver.line.androiu</item>
+        <item>jp.naver.line.androiv</item>
+        <item>jp.naver.line.androiw</item>
+        <item>jp.naver.line.androix</item>
+        <item>jp.naver.line.androiy</item>
+        <item>jp.naver.line.androiz</item>
+        <item>jp.naver.line.androi0</item>
+        <item>jp.naver.line.androi1</item>
+    </string-array>
+</resources>
