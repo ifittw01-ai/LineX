@@ -215,27 +215,6 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="18dp"
-            android:text="📦 流量魔方工作室 Line ID : Flow.Cube"
-            android:textColor="#ff000000"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="6dp"
-            android:autoLink="web"
-            android:linksClickable="true"
-            android:text="🔗 https://flowcube.mystrikingly.com"
-            android:textColor="#ff222222"
-            android:textSize="14sp" />
-
         <Space
             android:layout_width="match_parent"
             android:layout_height="12dp" />
