@@ -12,6 +12,11 @@ object CommunityScreenDetector {
         "請選擇您要加入的聊天室",
         "您也可由社群的聊天室選單中"
     )
+    private val suspendedHints = listOf(
+        "因違反服務條款",
+        "您的帳號已被停用",
+        "帳號已被停用"
+    )
     private val blockerHints = listOf(
         "此社群不存在",
         "發生不明錯誤",
@@ -33,6 +38,9 @@ object CommunityScreenDetector {
         if (root == null) return CommunityScreenType.UNKNOWN
         if (containsAnyText(root, listOf("需年滿18歲才能加入", "確認並加入"))) {
             return CommunityScreenType.AGE_CONFIRM_DIALOG
+        }
+        if (containsAnyText(root, suspendedHints)) {
+            return CommunityScreenType.ACCOUNT_SUSPENDED
         }
         if (containsAnyText(root, listOf("等待核准中", "等待審核中", "等待批准中"))) {
             return CommunityScreenType.APPROVAL_PENDING
@@ -63,6 +71,9 @@ object CommunityScreenDetector {
         }
         if (containsAllTexts(root, listOf("聊天", "記事本"))) {
             return CommunityScreenType.ALREADY_IN_COMMUNITY
+        }
+        if (isLikelyChatRoom(root)) {
+            return CommunityScreenType.CHAT_ROOM
         }
         return CommunityScreenType.UNKNOWN
     }
@@ -113,6 +124,90 @@ object CommunityScreenDetector {
         return result
     }
 
+    fun findNodeByTexts(root: AccessibilityNodeInfo?, targets: List<String>): AccessibilityNodeInfo? {
+        if (root == null) return null
+        var result: AccessibilityNodeInfo? = null
+        traverse(root) { node ->
+            if (result != null) return@traverse
+            val text = normalize(node.text?.toString().orEmpty())
+            val desc = normalize(node.contentDescription?.toString().orEmpty())
+            val viewId = normalize(node.viewIdResourceName.orEmpty())
+            for (target in targets) {
+                val t = normalize(target)
+                if (text.contains(t) || desc.contains(t) || viewId.contains(t)) {
+                    result = node
+                    break
+                }
+            }
+        }
+        return result
+    }
+
+    fun findTappableAncestor(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        var current = node
+        while (current != null) {
+            if (current.isVisibleToUser) {
+                val rect = Rect()
+                current.getBoundsInScreen(rect)
+                if (rect.width() > 0 && rect.height() > 0) return current
+            }
+            current = current.parent
+        }
+        return null
+    }
+
+    fun findBottomJoinCandidate(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val rootBounds = Rect()
+        root.getBoundsInScreen(rootBounds)
+        val screenHeight = rootBounds.height().coerceAtLeast(0)
+        val screenWidth = rootBounds.width().coerceAtLeast(0)
+        if (screenHeight <= 0 || screenWidth <= 0) return null
+        var best: AccessibilityNodeInfo? = null
+        var bestScore = 0
+        traverse(root) { node ->
+            if (!node.isEnabled || !node.isVisibleToUser) return@traverse
+            val text = node.text?.toString().orEmpty()
+            val desc = node.contentDescription?.toString().orEmpty()
+            if (!(text.contains("加入") || desc.contains("加入"))) return@traverse
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.width() <= 0 || rect.height() <= 0) return@traverse
+            if (rect.centerY() < (screenHeight * 0.6f)) return@traverse
+            if (rect.width() < (screenWidth * 0.4f)) return@traverse
+            val area = rect.width() * rect.height()
+            var score = area
+            if (node.isClickable) score += 30000
+            val className = node.className?.toString().orEmpty()
+            if (className.contains("Button", ignoreCase = true)) score += 20000
+            if (score > bestScore) {
+                bestScore = score
+                best = node
+            }
+        }
+        return best
+    }
+
+    fun findLargestWebView(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (root == null) return null
+        var best: AccessibilityNodeInfo? = null
+        var bestArea = 0
+        traverse(root) { node ->
+            val className = node.className?.toString().orEmpty()
+            if (!className.contains("WebView", ignoreCase = true)) return@traverse
+            if (!node.isVisibleToUser) return@traverse
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.width() <= 0 || rect.height() <= 0) return@traverse
+            val area = rect.width() * rect.height()
+            if (area > bestArea) {
+                bestArea = area
+                best = node
+            }
+        }
+        return best
+    }
+
     fun findFirstEditable(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (root == null) return null
         var result: AccessibilityNodeInfo? = null
@@ -123,6 +218,86 @@ object CommunityScreenDetector {
             }
         }
         return result
+    }
+
+    fun findClickableNodeByViewIdHints(root: AccessibilityNodeInfo?, hints: List<String>): AccessibilityNodeInfo? {
+        if (root == null) return null
+        var result: AccessibilityNodeInfo? = null
+        traverse(root) { node ->
+            if (result != null) return@traverse
+            val viewId = normalize(node.viewIdResourceName.orEmpty())
+            for (hint in hints) {
+                val h = normalize(hint)
+                if (viewId.contains(h)) {
+                    result = findClickableParent(node)
+                    break
+                }
+            }
+        }
+        return result
+    }
+
+    fun findLikelyChatEditable(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val screen = getScreenBounds(root)
+        val candidates = mutableListOf<Pair<AccessibilityNodeInfo, Rect>>()
+        traverse(root) { node ->
+            if (!node.isEditable) return@traverse
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.width() <= 0 || rect.height() <= 0) return@traverse
+            if (rect.bottom >= (screen.bottom * 0.72f) && rect.width() >= (screen.width() * 0.25f)) {
+                candidates.add(node to rect)
+            }
+        }
+        val best = candidates.sortedWith(
+            compareByDescending<Pair<AccessibilityNodeInfo, Rect>> { it.second.top }
+                .thenByDescending { it.second.width() }
+        ).firstOrNull()
+        return best?.first
+    }
+
+    fun findChatSendClickable(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val byId = findClickableNodeByViewIdHints(
+            root,
+            listOf("chat_ui_send_button", "chat_ui_send_bu", "chat_ui_send", "send_button", "chat_send")
+        )
+        if (byId != null) return byId
+        val byText = findClickableNodeByTexts(root, listOf("傳送", "送出", "send", "發送"))
+        if (byText != null) return byText
+        val screen = getScreenBounds(root)
+        val input = findLikelyChatEditable(root) ?: return null
+        val inputRect = Rect()
+        input.getBoundsInScreen(inputRect)
+        val candidates = mutableListOf<Pair<AccessibilityNodeInfo, Rect>>()
+        traverse(root) { node ->
+            val clickable = if (node.isClickable) node else findClickableParent(node) ?: return@traverse
+            val rect = Rect()
+            clickable.getBoundsInScreen(rect)
+            if (rect.width() <= 0 || rect.height() <= 0) return@traverse
+            if (rect.top >= screen.bottom * 0.5f &&
+                rect.left >= screen.right * 0.6f &&
+                rect.width() <= screen.width() * 0.25f &&
+                rect.height() <= screen.height() * 0.16f
+            ) {
+                val centerYDistance = kotlin.math.abs(rect.centerY() - inputRect.centerY())
+                val maxDistance = maxOf(220, inputRect.height() * 2)
+                if (centerYDistance <= maxDistance) {
+                    candidates.add(clickable to rect)
+                }
+            }
+        }
+        val best = candidates.sortedWith(
+            compareBy<Pair<AccessibilityNodeInfo, Rect>> { kotlin.math.abs(it.second.centerY() - inputRect.centerY()) }
+                .thenByDescending { it.second.right }
+                .thenByDescending { it.second.width() * it.second.height() }
+        ).firstOrNull()
+        return best?.first
+    }
+
+    fun findChatTabClickable(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        return findClickableNodeByTexts(root, listOf("聊天"))
     }
 
     fun extractLikelyQuestion(root: AccessibilityNodeInfo?): String {
@@ -140,7 +315,7 @@ object CommunityScreenDetector {
 
     fun extractDialogSummary(root: AccessibilityNodeInfo?): String {
         if (root == null) return ""
-        val blacklist = setOf("確定", "取消", "確認並加入")
+        val blacklist = setOf("確定", "取消", "確認並加入", "關閉", "瞭解更多")
         val texts = mutableListOf<String>()
         traverse(root) { node ->
             val t = node.text?.toString()?.trim().orEmpty()
@@ -178,12 +353,14 @@ object CommunityScreenDetector {
         if (root == null) return null
         val rootBounds = Rect()
         root.getBoundsInScreen(rootBounds)
-        val screenHeight = if (rootBounds.height() > 0) rootBounds.height() else 0
-        if (screenHeight <= 0) return null
+        val screenHeight = rootBounds.height().coerceAtLeast(0)
+        val screenWidth = rootBounds.width().coerceAtLeast(0)
+        if (screenHeight <= 0 || screenWidth <= 0) return null
         var best: AccessibilityNodeInfo? = null
         var bestArea = 0
         traverse(root) { node ->
             if (!node.isClickable || !node.isEnabled) return@traverse
+            if (!node.isVisibleToUser) return@traverse
             val rect = Rect()
             node.getBoundsInScreen(rect)
             if (rect.width() <= 0 || rect.height() <= 0) return@traverse
@@ -192,6 +369,39 @@ object CommunityScreenDetector {
             val area = rect.width() * rect.height()
             if (area > bestArea) {
                 bestArea = area
+                best = node
+            }
+        }
+        return best
+    }
+
+    fun findLargestBottomNode(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (root == null) return null
+        val rootBounds = Rect()
+        root.getBoundsInScreen(rootBounds)
+        val screenHeight = rootBounds.height().coerceAtLeast(0)
+        val screenWidth = rootBounds.width().coerceAtLeast(0)
+        if (screenHeight <= 0 || screenWidth <= 0) return null
+        var best: AccessibilityNodeInfo? = null
+        var bestScore = 0
+        traverse(root) { node ->
+            if (!node.isEnabled || !node.isVisibleToUser) return@traverse
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.width() <= 0 || rect.height() <= 0) return@traverse
+            val centerY = rect.centerY()
+            if (centerY < (screenHeight * 0.6f)) return@traverse
+            if (rect.width() < (screenWidth * 0.5f)) return@traverse
+            if (rect.height() > (screenHeight * 0.35f)) return@traverse
+            val area = rect.width() * rect.height()
+            var score = area
+            if (node.isClickable) score += 40000
+            val className = node.className?.toString().orEmpty()
+            if (className.contains("Button", ignoreCase = true)) score += 30000
+            val text = node.text?.toString().orEmpty()
+            if (text.contains("加入")) score += 20000
+            if (score > bestScore) {
+                bestScore = score
                 best = node
             }
         }
@@ -254,6 +464,12 @@ object CommunityScreenDetector {
         return null
     }
 
+    private fun getScreenBounds(root: AccessibilityNodeInfo): Rect {
+        val rect = Rect()
+        root.getBoundsInScreen(rect)
+        return rect
+    }
+
     private fun traverse(node: AccessibilityNodeInfo?, block: (AccessibilityNodeInfo) -> Unit) {
         if (node == null) return
         block(node)
@@ -264,5 +480,17 @@ object CommunityScreenDetector {
 
     private fun normalize(text: String): String {
         return text.replace("\\s+".toRegex(), "").lowercase(Locale.ROOT)
+    }
+
+    private fun isLikelyChatRoom(root: AccessibilityNodeInfo): Boolean {
+        val input = findLikelyChatEditable(root) ?: return false
+        val rect = Rect()
+        input.getBoundsInScreen(rect)
+        val screen = getScreenBounds(root)
+        if (rect.width() <= 0 || rect.height() <= 0) return false
+        if (rect.bottom < screen.bottom * 0.72f || rect.height() > screen.height() * 0.15f) return false
+        val hasComposerHint = containsAnyText(root, listOf("傳送", "送出", "send", "訊息", "message"))
+        val hasSendNode = findChatSendClickable(root) != null
+        return hasComposerHint || hasSendNode
     }
 }

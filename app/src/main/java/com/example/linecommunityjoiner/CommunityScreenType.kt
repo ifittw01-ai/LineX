@@ -5,6 +5,7 @@ enum class CommunityScreenType {
     AGE_CONFIRM_DIALOG,
     APPROVAL_PENDING,
     GENERIC_BLOCKER_DIALOG,
+    ACCOUNT_SUSPENDED,
     ALREADY_IN_COMMUNITY,
     COMMUNITY_HOME,
     ROOM_LIST,
@@ -12,5 +13,6 @@ enum class CommunityScreenType {
     PROFILE,
     REMINDER,
     APPLICATION_SENT,
-    PASSWORD_ENTRY
+    PASSWORD_ENTRY,
+    CHAT_ROOM
 }
