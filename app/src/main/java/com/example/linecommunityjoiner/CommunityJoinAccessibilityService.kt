@@ -32,6 +32,7 @@ class CommunityJoinAccessibilityService : AccessibilityService() {
     private var processingUrlTransition = false
     private var joinCompletedAwaitingPost = false
     private var chatComposeInProgress = false
+    private var chatComposeStartedAt = 0L
     private var disableNodeSendForCurrentUrl = false
     private var mentionCorruptionCountForCurrentUrl = 0
     private var postJoinRecoveryCount = 0
@@ -509,6 +510,7 @@ class CommunityJoinAccessibilityService : AccessibilityService() {
                 return@runThrottled
             }
             chatComposeInProgress = true
+            chatComposeStartedAt = System.currentTimeMillis()
             postJoinRecoveryCount = 0
             lastMeaningfulScreenAt = System.currentTimeMillis()
             sendProgress("📍 已進入聊天室，準備貼上文案")
@@ -645,6 +647,7 @@ class CommunityJoinAccessibilityService : AccessibilityService() {
         if (!canWork(token)) return
         joinCompletedAwaitingPost = false
         chatComposeInProgress = false
+        chatComposeStartedAt = 0L
         finishCurrentUrlAndWait("✅ 第 ${CommunityJoinSession.getCurrentIndex() + 1} 筆社群網址已完成並送出文案")
     }
 
@@ -900,6 +903,13 @@ class CommunityJoinAccessibilityService : AccessibilityService() {
                                 finishCurrentUrlAndWait("⚠️ 第 ${CommunityJoinSession.getCurrentIndex() + 1} 筆已完成加入，但文案未成功送出")
                             }
                         }
+                    }
+                    chatComposeInProgress && chatComposeStartedAt > 0L && now - chatComposeStartedAt > 25000 -> {
+                        joinCompletedAwaitingPost = false
+                        chatComposeInProgress = false
+                        chatComposeStartedAt = 0L
+                        sendProgress("⚠️ 聊天室貼文逾時，改為直接進入下一筆")
+                        finishCurrentUrlAndWait("⚠️ 第 ${CommunityJoinSession.getCurrentIndex() + 1} 筆已完成加入，但文案送出逾時")
                     }
                     idle > 22000 -> {
                         skipCurrentUrlImmediately("⏭ 此筆社群畫面停留過久，已跳下一筆")
@@ -1289,6 +1299,7 @@ class CommunityJoinAccessibilityService : AccessibilityService() {
         disableNodeSendForCurrentUrl = false
         mentionCorruptionCountForCurrentUrl = 0
         postJoinRecoveryCount = 0
+        chatComposeStartedAt = 0L
     }
 
     private fun tapByRatioRepeated(xRatio: Float, yRatio: Float, count: Int = 3, intervalMs: Long = 120L): Boolean {

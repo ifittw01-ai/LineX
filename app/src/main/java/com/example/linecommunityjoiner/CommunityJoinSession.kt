@@ -33,6 +33,8 @@ object CommunityJoinSession {
     private var scheduleMinute: Int = -1
     private var currentIndex: Int = 0
     private var currentLineIndex: Int = 0
+    private var currentLineRunCount: Int = 0
+    private val runsPerLine: Int = 10
     private var importedFileBaseName: String = "社群網址"
     private var postReminderConfirmedAt: Long? = null
     private var currentUrlCanPostAfterJoin: Boolean = false
@@ -55,6 +57,7 @@ object CommunityJoinSession {
         linePackages.addAll(selectedPackages)
         currentIndex = 0
         currentLineIndex = 0
+        currentLineRunCount = 0
         nickname = selectedNickname.trim()
         waitMinSeconds = max(selectedWaitMinSeconds, 1)
         waitMaxSeconds = max(selectedWaitMaxSeconds, waitMinSeconds)
@@ -179,15 +182,25 @@ object CommunityJoinSession {
             postReminderConfirmedAt = null
             currentUrlCanPostAfterJoin = false
             currentUrlJoinRecorded = false
-            currentIndex++
-            if (currentIndex < urls.size) {
-                Log.d("CommunitySession", "調用後 - currentIndex: $currentIndex（同一個 LINE 帳號，下一筆網址）")
-                return true
+            if (urls.isEmpty() || linePackages.isEmpty()) {
+                return false
             }
-            currentIndex = 0
-            currentLineIndex++
-            Log.d("CommunitySession", "調用後 - currentIndex: $currentIndex, currentLineIndex: $currentLineIndex（切換到下一個 LINE 帳號）")
-            return currentLineIndex < linePackages.size
+            currentIndex = (currentIndex + 1) % urls.size
+            currentLineRunCount++
+            if (currentLineRunCount >= runsPerLine) {
+                currentLineRunCount = 0
+                currentLineIndex = (currentLineIndex + 1) % linePackages.size
+                Log.d(
+                    "CommunitySession",
+                    "調用後 - currentIndex: $currentIndex, currentLineIndex: $currentLineIndex（已跑滿 $runsPerLine 次，切換到下一個 LINE 帳號）"
+                )
+            } else {
+                Log.d(
+                    "CommunitySession",
+                    "調用後 - currentIndex: $currentIndex（同一個 LINE 帳號，第 $currentLineRunCount / $runsPerLine 次）"
+                )
+            }
+            return true
         }
     }
 
@@ -217,6 +230,7 @@ object CommunityJoinSession {
         currentIndex = 0
         linePackages.clear()
         currentLineIndex = 0
+        currentLineRunCount = 0
         nickname = ""
         waitSeconds = 0
         waitMinSeconds = 0
